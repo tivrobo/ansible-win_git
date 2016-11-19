@@ -1,22 +1,28 @@
 # Ansible-win_git
 
-* win_git: Git Ansible module for Windows
+### win_git: Git Ansible module for Windows
 
-* Installation: place win_git.ps1 and win_git.py into 'library' dir of your playbook
+#### Installation:
+```
+place win_git.ps1 and win_git.py into 'library' dir of your playbook
+````
 
-More info: http://docs.ansible.com/ansible/dev_guide/developing_modules.html#windows-modules-checklist
+####More info:
+```
+http://docs.ansible.com/ansible/dev_guide/developing_modules.html#windows-modules-checklist
+```
 
-* Example:
-
+#### Example:
+```
   -name: git clone cool-thing
     win_git:
       name: "git@github.com:tivrobo/Ansible-win_git.git"
       dest: "{{ ansible_env.TEMP }}\\Ansible-win_git"
       replace_dest: no
       accept_hostkey: yes
-      
-* Output:
-
+```
+#### Output:
+```
   ok: [windows2008r2.example.com] => {
       "changed": false, 
       "invocation": {
@@ -33,3 +39,4 @@ More info: http://docs.ansible.com/ansible/dev_guide/developing_modules.html#win
           "return_code": 0
       }
   }
+```
