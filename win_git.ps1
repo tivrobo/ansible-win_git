@@ -31,32 +31,7 @@ $_ansible_check_mode = Get-AnsibleParam -obj $params -name "_ansible_check_mode"
 $env:Path += ";" + "C:\Program Files\Git\usr\bin"
 $env:Path += ";" + "C:\Program Files (x86)\Git\usr\bin"
 
-# Search for an Error Message
-# git seems to display an error after 3 '-----' separator lines
-Function SearchForError($cmd_output, $default_msg) {
-    $separator_count = 0
-    $error_msg = $default_msg
-    ForEach ($line in $cmd_output) {
-        if (-Not $line) {
-            continue
-        }
-
-        if ($separator_count -ne 3) {
-            if (Select-String -InputObject $line -pattern "^(\s+)?(\-+)(\s+)?$") {
-                $separator_count += 1
-            }
-        }
-        Else {
-            If (Select-String -InputObject $line -pattern "error") {
-                $error_msg = $line
-                break
-            }
-        }
-    }
-
-    return $error_msg
-}
-
+# Functions
 Function Find-Command
 {
     [CmdletBinding()]
@@ -89,17 +64,6 @@ Function FindGit
     Throw "git.exe is not installed. It must be installed (use chocolatey)"
 }
 
-# $dest = "$env:TEMP\ZabbixAgent.Empty"
-# $dest = "$env:TEMP\ZabbixAgent"
-# $dest = "$env:TEMP\Zabbbixxx"
-
-# $replace_dest = $true
-# $replace_dest = $false
-
-# PrepareDestination
-
-
-
 # Check destination folder, create if not exist
 function PrepareDestination
 {
@@ -128,10 +92,9 @@ function CheckSshKnownHosts
 {
     [CmdletBinding()]
     param()
-    #$name = "git@kv-git.b2bsoft.com:TechSupport/Zabbix-Agent.git"
-    #$name = "git@kv-git.b2bsoft.com.ua:TechSupport/Zabbix-Agent.git"
     # Get the Git Hostname
-    & cmd /c ssh-keygen.exe -F $($name -replace "^(\w+)\@([\w-_\.]+)\:(.*)$", '$2') | Out-Null
+    $gitServer = $($name -replace "^(\w+)\@([\w-_\.]+)\:(.*)$", '$2')
+    & cmd /c ssh-keygen.exe -F $gitServer | Out-Null
     $rc = $LASTEXITCODE
     
     if ($rc -ne 0)
@@ -139,7 +102,7 @@ function CheckSshKnownHosts
         # Host is unknown
         if ($accept_hostkey)
         {
-            & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 kv-git.b2bsoft.com | Out-File -Append "$env:Userprofile\.ssh\known_hosts"
+            & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 $gitServer | Out-File -Append "$env:Userprofile\.ssh\known_hosts"
         }
         else
         {
