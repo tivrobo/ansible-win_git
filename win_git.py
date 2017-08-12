@@ -41,6 +41,16 @@ options:
       - add hostkey to known_hosts (before connecting to git)
     required: false
     default: false
+  update:
+    description:
+      - do we want to update the repo (use git pull origin branch)
+    required: false
+    default: false
+  branch:
+    description:
+      - branch to update the repo
+    required: false
+    default: master
 author: Anatoliy Ivashina
 '''
 

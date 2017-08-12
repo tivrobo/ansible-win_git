@@ -1,0 +1,6 @@
+20170811:
+
+   - fixes to use Fail-Json to be compatible with ansible 2.3.2 (pablodav)
+   - added options "update" and "branch" (pablodav)
+   - fixes error when using git repo with http/https
+
