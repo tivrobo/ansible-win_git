@@ -120,7 +120,6 @@ function CheckSshKnownHosts
         }
     }
 }
-
 function CheckSshIdentity
 {
     [CmdletBinding()]
@@ -131,6 +130,28 @@ function CheckSshIdentity
     if ($rc -ne 0) {
         Fail-Json -obj $result -message  "Something wrong with connection!"
     }
+}
+
+function get_version {
+    # samples the version of the git repo 
+    # example:  git rev-parse HEAD
+    #           output: 931ec5d25bff48052afae405d600964efd5fd3da
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false, Position=0)] [string] $refs = "HEAD"
+    )
+    $git_opts = @()
+    $git_opts += "rev-parse"
+    $git_opts += "$refs"
+    $git_cmd_output = ""
+    
+    [hashtable]$Return = @{} 
+    Set-Location $dest; &git $git_opts | Tee-Object -Variable git_cmd_output | Out-Null
+    $Return.rc = $LASTEXITCODE
+    $Return.git_output = $git_cmd_output
+    
+    return $Return
+
 }
 function clone
 {
@@ -185,7 +206,6 @@ function update
     return $Return
     
 }
-
 
 
 if ($name -eq ($null -or "")) {
