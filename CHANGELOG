@@ -1,3 +1,8 @@
+20170925:
+
+  - fixes to manage correctly the branch desired (pablodav)
+  - put changed status in correct place (changed status not handled correctly yet) (pablodav)
+
 20170814:
 
    - added function get_version (pablodav)

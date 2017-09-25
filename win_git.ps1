@@ -141,6 +141,7 @@ function get_version {
         [Parameter(Mandatory=$false, Position=0)] [string] $refs = "HEAD"
     )
     $git_opts = @()
+    $git_opts += "--no-pager"
     $git_opts += "rev-parse"
     $git_opts += "$refs"
     $git_cmd_output = ""
@@ -153,6 +154,31 @@ function get_version {
     return $Return
 
 }
+
+function checkout {
+    [CmdletBinding()]
+    param()
+    [hashtable]$Return = @{} 
+    $local_git_output = ""
+
+    $git_opts = @()
+    $git_opts += "--no-pager"
+    $git_opts += "checkout"
+    $git_opts += "$branch"
+    Set-Location $dest; &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
+
+    $Return.git_output = $local_git_output
+    Set-Location $dest; &git status --short --branch | Tee-Object -Variable branch_status | Out-Null
+    $branch_status = $branch_status.split("/")[1]
+    Set-Attr $result.win_git "branch_status" "$branch_status"
+
+    if ( $branch_status -ne "$branch" ) {
+        Fail-Json $result "Failed to checkout to $branch"
+    }
+
+    return $Return
+
+}
 function clone
 {
     # git clone command
@@ -161,18 +187,26 @@ function clone
 
     Set-Attr $result.win_git "method" "clone"
     [hashtable]$Return = @{} 
-    $git_output = ""
+    $local_git_output = ""
 
     $git_opts = @()
+    $git_opts += "--no-pager"
     $git_opts += "clone"
     $git_opts += $name
     $git_opts += $dest
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
 
-    &git $git_opts | Tee-Object -Variable git_output | Out-Null
+    #$local_git_output = $( &git $git_opts 2>&1 )
+    &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
     $Return.rc = $LASTEXITCODE
-    $Return.git_output = $git_output
+    $Return.git_output = $local_git_output
+
+    Set-Attr $result.win_git "return_code" $LASTEXITCODE
+    Set-Attr $result.win_git "git_output" $local_git_output
+
+    # Change to different branch
+    checkout
 
     return $Return
     
@@ -190,15 +224,21 @@ function update
 
     # Build Arguments
     $git_opts = @()
+    $git_opts += "--no-pager"
     $git_opts += "pull"
     $git_opts += "origin"
     $git_opts += "$branch"
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
-
+    # move into correct branch before pull
+    checkout
+    # perform git pull
     Set-Location $dest; &git $git_opts | Tee-Object -Variable git_output | Out-Null
     $Return.rc = $LASTEXITCODE
     $Return.git_output = $git_output
+    
+    Set-Attr $result.win_git "return_code" $LASTEXITCODE
+    Set-Attr $result.win_git "git_output" $git_output
 
     # TODO: 
     # handle correct CHANGED for updated repository
@@ -251,15 +291,11 @@ Else {
         }
 
         if (-not $update) {
-            $Return = clone
-            $rc = $Return.rc
-            $git_output = $Return.git_output
+            clone
         }
 
         if ($update) {
-            $Return = update
-            $rc = $Return.rc
-            $git_output = $Return.git_output
+            update
         }
         
     }
@@ -269,8 +305,8 @@ Else {
     }
 }
 
-Set-Attr $result.win_git "return_code" $rc
-Set-Attr $result.win_git "output" $git_output
+# Set-Attr $result.win_git "return_code" $rc
+# Set-Attr $result.win_git "output" $git_output
 
 # TODO: 
 # handle correct CHANGED for updated repository
@@ -286,5 +322,6 @@ Else {
 
 Set-Attr $result.win_git "msg" $cmd_msg
 Set-Attr $result.win_git "changed" $changed
+Set-Attr $result "changed" $changed
 
 Exit-Json $result
