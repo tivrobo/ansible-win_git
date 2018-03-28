@@ -33,7 +33,7 @@ place win_git.ps1 and win_git.py into 'library' dir of your playbook
           "changed": true, 
           "dest": "C:\\Users\\tivrobo\\AppData\\Local\\Temp\\Ansible-win_git", 
           "msg": "Successfully cloned git@github.com:tivrobo/Ansible-win_git.git into C:\\Users\\tivrobo\\AppData\\Local\\Temp\\Ansible-win_git.", 
-          "name": "git@github.com:tivrobo/Ansible-win_git.git",
+          "repo": "git@github.com:tivrobo/Ansible-win_git.git",
           "output": "", 
           "replace_dest": false, 
           "return_code": 0
