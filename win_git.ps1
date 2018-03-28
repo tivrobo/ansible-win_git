@@ -1,38 +1,37 @@
 #!powershell
-# 
-# 
+
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 # Anatoliy Ivashina <tivrobo@gmail.com>
-#
-# collaborators:
 # Pablo Estigarribia <pablodav@gmail.com>
-# 
-# 
+# Michael Hay <project.hay@gmail.com>
 
-# WANT_JSON
-# POWERSHELL_COMMON
+#Requires -Module Ansible.ModuleUtils.Legacy.psm1
 
-$params = Parse-Args $args;
+$params = Parse-Args -arguments $args -supports_check_mode $true
+$check_mode = Get-AnsibleParam -obj $params -name "_ansible_check_mode" -default $false
+
+# Module Params
+$repo = Get-AnsibleParam -obj $params -name "repo" -failifempty $true
+$dest = Get-AnsibleParam -obj $params -name "dest"
+$branch = Get-AnsibleParam -obj $params -name "branch" -default "master"
+$clone = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "clone" -default $true)
+$update = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "update" -default $false)
+$replace_dest = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "replace_dest" -default $false)
+$accept_hostkey = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "accept_hostkey" -default $false)
 
 $result = New-Object psobject @{
     win_git = New-Object psobject @{
-        name              = $null
+        repo              = $null
         dest              = $null
-        replace_dest      = $false
-        accept_hostkey    = $false
+        clone             = $null
+        replace_dest      = $true
+        accept_hostkey    = $true
         update            = $false
         branch            = "master"
     }
     changed = $false
 }
-
-$name = Get-AnsibleParam -obj $params -name "name" -failifempty $true
-$dest = Get-AnsibleParam -obj $params -name "dest"
-$update = Get-AnsibleParam -obj $params -name "update" -default $false
-$branch = Get-AnsibleParam -obj $params -name "branch" -default "master"
-$replace_dest = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "replace_dest" -default $false)
-$accept_hostkey = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "accept_hostkey" -default $false)
-
-$_ansible_check_mode = Get-AnsibleParam -obj $params -name "_ansible_check_mode" -default $false
 
 # Add Git to PATH variable
 # Test with git 2.14
@@ -42,41 +41,35 @@ $env:Path += ";" + "C:\Program Files (x86)\Git\bin"
 $env:Path += ";" + "C:\Program Files (x86)\Git\usr\bin"
 
 # Functions
-Function Find-Command
-{
+function Find-Command {
     [CmdletBinding()]
     param(
       [Parameter(Mandatory=$true, Position=0)] [string] $command
     )
     $installed = get-command $command -erroraction Ignore
     write-verbose "$installed"
-    if ($installed)
-    {
+    if ($installed){
         return $installed
     }
     return $null
 }
 
-Function FindGit
-{
+function FindGit {
     [CmdletBinding()]
     param()
     $p = Find-Command "git.exe"
-    if ($p -ne $null)
-    {
+    if ($p -ne $null){
         return $p
     }
     $a = Find-Command "C:\Program Files\Git\bin\git.exe"
-    if ($a -ne $null)
-    {
+    if ($a -ne $null){
         return $a
     }
     Fail-Json -obj $result -message "git.exe is not installed. It must be installed (use chocolatey)"
 }
 
 # Check destination folder, create if not exist
-function PrepareDestination
-{
+function PrepareDestination {
     [CmdletBinding()]
     param()
     if (Test-Path $dest) {
@@ -91,41 +84,33 @@ function PrepareDestination
             }
         }
     }
-    else {
-        # Create destination folder
-        New-Item $dest -ItemType Directory -Force | Out-Null
-    }
 }
 
 # SSH Keys
-function CheckSshKnownHosts
-{
+function CheckSshKnownHosts {
     [CmdletBinding()]
     param()
-    # Get the Git Hostname
-    $gitServer = $($name -replace "^(\w+)\@([\w-_\.]+)\:(.*)$", '$2')
+    # Get the Git Hostrepo
+    $gitServer = $($repo -replace "^(\w+)\@([\w-_\.]+)\:(.*)$", '$2')
     & cmd /c ssh-keygen.exe -F $gitServer | Out-Null
     $rc = $LASTEXITCODE
     
-    if ($rc -ne 0)
-    {
+    if ($rc -ne 0){
         # Host is unknown
-        if ($accept_hostkey)
-        {
+        if ($accept_hostkey){
             & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 $gitServer | Out-File -Append "$env:Userprofile\.ssh\known_hosts"
         }
-        else
-        {
+        else {
             Fail-Json -obj $result -message  "Host is not known!"
         }
     }
 }
-function CheckSshIdentity
-{
+
+function CheckSshIdentity {
     [CmdletBinding()]
     param()
 
-    & cmd /c git.exe ls-remote $name | Out-Null
+    & cmd /c git.exe ls-remote $repo | Out-Null
     $rc = $LASTEXITCODE
     if ($rc -ne 0) {
         Fail-Json -obj $result -message  "Something wrong with connection!"
@@ -152,7 +137,6 @@ function get_version {
     $Return.git_output = $git_cmd_output
     
     return $Return
-
 }
 
 function checkout {
@@ -177,10 +161,9 @@ function checkout {
     }
 
     return $Return
-
 }
-function clone
-{
+
+function clone {
     # git clone command
     [CmdletBinding()]
     param()
@@ -192,34 +175,37 @@ function clone
     $git_opts = @()
     $git_opts += "--no-pager"
     $git_opts += "clone"
-    $git_opts += $name
+    $git_opts += $repo
     $git_opts += $dest
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
 
-    #$local_git_output = $( &git $git_opts 2>&1 )
-    &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
-    $Return.rc = $LASTEXITCODE
-    $Return.git_output = $local_git_output
-
-    Set-Attr $result.win_git "return_code" $LASTEXITCODE
-    Set-Attr $result.win_git "git_output" $local_git_output
-
-    # Change to different branch
-    checkout
+    #Only clone if $dest does not exist and not in check mode
+    if( (-Not (Test-Path -Path $dest)) -And  (-Not $check_mode)) {
+        &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
+        $Return.rc = $LASTEXITCODE
+        $Return.git_output = $local_git_output
+        $result.$cmd_msg = "Successfully cloned $repo into $dest."
+        $result.$changed = $true
+        Set-Attr $result.win_git "return_code" $LASTEXITCODE
+        Set-Attr $result.win_git "git_output" $local_git_output
+    }
+    else {
+        $Return.rc = 0
+        $Return.git_output = $local_git_output
+        $result.$cmd_msg = "Skipping Clone of $repo becuase $dest already exists"
+    }
 
     return $Return
-    
 }
 
-function update
-{
+function update {
     # git clone command
     [CmdletBinding()]
     param()
 
     Set-Attr $result.win_git "method" "pull"
-    [hashtable]$Return = @{} 
+    [hashtable]$Return = @{}
     $git_output = ""
 
     # Build Arguments
@@ -244,14 +230,13 @@ function update
     # handle correct CHANGED for updated repository
 
     return $Return
-    
 }
 
 
-if ($name -eq ($null -or "")) {
+if ($repo -eq ($null -or "")) {
     Fail-Json $result "Repository cannot be empty or `$null"
 }
-Set-Attr $result.win_git "name" $name
+Set-Attr $result.win_git "repo" $repo
 Set-Attr $result.win_git "dest" $dest
 
 Set-Attr $result.win_git "replace_dest" $replace_dest
@@ -263,12 +248,12 @@ Set-Attr $result.win_git "branch" $branch
 $git_output = ""
 $rc = 0
 
-If ($_ansible_check_mode -eq $true) {
-    $git_output = "Would have copied the contents of $name to $dest"
+if ($check_mode -eq $true) {
+    $git_output = "Would have copied the contents of $repo to $dest"
     $rc = 0
 }
-Else {
-    Try {
+else {
+    try {
 
         FindGit
 
@@ -276,46 +261,34 @@ Else {
         } else {
             PrepareDestination
         }
-
         if ($replace_dest) {
             PrepareDestination
         }
-
-        if ([system.uri]::IsWellFormedUriString($name,[System.UriKind]::Absolute)) {
+        if ([system.uri]::IsWellFormedUriString($repo,[System.UriKind]::Absolute)) {
             # http/https repositories doesn't need Ssh handle
             # fix to avoid wrong usage of CheckSshKnownHosts CheckSshIdentity for http/https
-            Set-Attr $result.win_git "valid_url" "$name is valid url"
+            Set-Attr $result.win_git "valid_url" "$repo is valid url"
         } else {
             CheckSshKnownHosts
             CheckSshIdentity
         }
-
-        if (-not $update) {
+        if ($clone) {
             clone
         }
-
-        if ($update) {
+        if ($update -and (Test-Path $dest\.git)) {
             update
         }
-        
     }
-    Catch {
+    catch {
         $ErrorMessage = $_.Exception.Message
-        Fail-Json $result "Error cloning $name to $dest! Msg: $ErrorMessage - $git_output"
+        Fail-Json $result "Error cloning $repo to $dest! Msg: $ErrorMessage - $git_output"
     }
 }
 
-# Set-Attr $result.win_git "return_code" $rc
-# Set-Attr $result.win_git "output" $git_output
-
-# TODO: 
-# handle correct CHANGED for updated repository
-$cmd_msg = "Success"
-If ($rc -eq 0) {
-    $cmd_msg = "Successfully cloned $name into $dest."
+if ($rc -eq 0) {
+    $cmd_msg = "Successfully cloned $repo into $dest."
     $changed = $true
-}
-Else {
+} else {
     $error_msg = SearchForError $git_output "Fatal Error!"
     Fail-Json $result $error_msg
 }
