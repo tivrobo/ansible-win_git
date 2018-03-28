@@ -1,3 +1,9 @@
+20180328:
+
+  - Changed variables to match non windows git mudule names (project.hay)
+  - Updated functions to be atomic and decoupled (project.hay)
+  - Added more handling of the Changed result var (project.hay)
+
 20170925:
 
   - fixes to manage correctly the branch desired (pablodav)

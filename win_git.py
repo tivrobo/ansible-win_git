@@ -1,17 +1,14 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# 
-# 
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 # Anatoliy Ivashina <tivrobo@gmail.com>
-#
-#
+# Pablo Estigarribia <pablodav@gmail.com>
+# Michael Hay <project.hay@gmail.com>
 
 
-# this is a windows documentation stub.  actual code lives in the .ps1
-# file of the same name
-
-DOCUMENTATION = '''
+DOCUMENTATION = r'''
 ---
 module: win_git
 version_added: "2.0"
@@ -23,10 +20,11 @@ notes:
     - git for Windows need to be installed
     - SSH only
 options:
-  name:
+  repo:
     description:
       - address of the repository
     required: true
+    aliases: [ name ]
   dest:
     description:
       - destination folder
@@ -51,15 +49,19 @@ options:
       - branch to update the repo
     required: false
     default: master
-author: Anatoliy Ivashina
+author: 
+- Anatoliy Ivashina
+- Pablo Estigarribia
+- Michael Hay
 '''
 
-EXAMPLES = '''
+EXAMPLES = r'''
   # git clone cool-thing.
   win_git:
-    name: "git@github.com:tivrobo/Ansible-win_git.git"
+    repo: "git@github.com:tivrobo/Ansible-win_git.git"
     dest: "{{ ansible_env.TEMP }}\\Ansible-win_git"
+    branch: master
+    update: no
     replace_dest: no
     accept_hostkey: yes
-
 '''
