@@ -224,6 +224,7 @@ function update {
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $git_output
         Set-Attr $result "cmd_msg" "Successfully updated $repo to $branch."
+        #TODO: handle correct status change when using update
         Set-Attr $result "changed" $true
         Set-Attr $result.win_git "return_code" $LASTEXITCODE
         Set-Attr $result.win_git "git_output" $git_output
