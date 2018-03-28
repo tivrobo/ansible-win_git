@@ -24,6 +24,7 @@ options:
     description:
       - address of the repository
     required: true
+    aliases: [ name ]
   dest:
     description:
       - destination folder

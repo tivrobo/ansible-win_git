@@ -12,7 +12,7 @@ $params = Parse-Args -arguments $args -supports_check_mode $true
 $check_mode = Get-AnsibleParam -obj $params -name "_ansible_check_mode" -default $false
 
 # Module Params
-$repo = Get-AnsibleParam -obj $params -name "repo" -failifempty $true
+$repo = Get-AnsibleParam -obj $params -name "repo" -failifempty $true -aliases "name"
 $dest = Get-AnsibleParam -obj $params -name "dest"
 $branch = Get-AnsibleParam -obj $params -name "branch" -default "master"
 $clone = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "clone" -default $true)
