@@ -24,13 +24,14 @@ $result = New-Object psobject @{
     win_git = New-Object psobject @{
         repo              = $null
         dest              = $null
-        clone             = $null
+        clone             = $false
         replace_dest      = $true
         accept_hostkey    = $true
         update            = $false
         branch            = "master"
     }
     changed = $false
+    cmd_msg = $null
 }
 
 # Add Git to PATH variable
@@ -72,11 +73,11 @@ function FindGit {
 function PrepareDestination {
     [CmdletBinding()]
     param()
-    if (Test-Path $dest -and -not $check_mode) {
+    if ((Test-Path $dest) -And (-Not $check_mode)) {
         try {
             Remove-Item $dest -Force -Recurse | Out-Null
-            $result.$cmd_msg = "Successfully removed dir $dest."
-            $result.$changed = $true
+            Set-Attr $result "cmd_msg" "Successfully removed dir $dest."
+            Set-Attr $result "changed" $true
         } catch {
             $ErrorMessage = $_.Exception.Message
             Fail-Json $result "Error removing $dest! Msg: $ErrorMessage"
@@ -183,15 +184,15 @@ function clone {
         &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $local_git_output
-        $result.$cmd_msg = "Successfully cloned $repo into $dest."
-        $result.$changed = $true
+        Set-Attr $result "cmd_msg" "Successfully cloned $repo into $dest."
+        Set-Attr $result "changed" $true
         Set-Attr $result.win_git "return_code" $LASTEXITCODE
         Set-Attr $result.win_git "git_output" $local_git_output
     }
     else {
         $Return.rc = 0
         $Return.git_output = $local_git_output
-        $result.$cmd_msg = "Skipping Clone of $repo becuase $dest already exists"
+        Set-Attr $result "cmd_msg" "Skipping Clone of $repo becuase $dest already exists"
     }
 
     return $Return
@@ -222,14 +223,14 @@ function update {
         Set-Location $dest; &git $git_opts | Tee-Object -Variable git_output | Out-Null
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $git_output
-        $result.$cmd_msg = "Successfully updated $repo tp $branch."
-        $result.$changed = $true
+        Set-Attr $result "cmd_msg" "Successfully updated $repo to $branch."
+        Set-Attr $result "changed" $true
         Set-Attr $result.win_git "return_code" $LASTEXITCODE
         Set-Attr $result.win_git "git_output" $git_output
     } else {
         $Return.rc = 0
         $Return.git_output = $local_git_output
-        $result.$cmd_msg = "Skipping update of $repo"
+        Set-Attr $result "cmd_msg" "Skipping update of $repo"
     }
 
     return $Return
@@ -251,49 +252,34 @@ Set-Attr $result.win_git "branch" $branch
 $git_output = ""
 $rc = 0
 
-if ($check_mode -eq $true) {
-    $git_output = "Would have copied the contents of $repo to $dest"
-    $rc = 0
-}
-else {
-    try {
+try {
 
-        FindGit
+    FindGit
 
-        if ($replace_dest) {
-            PrepareDestination
-        }
-        if ([system.uri]::IsWellFormedUriString($repo,[System.UriKind]::Absolute)) {
-            # http/https repositories doesn't need Ssh handle
-            # fix to avoid wrong usage of CheckSshKnownHosts CheckSshIdentity for http/https
-            Set-Attr $result.win_git "valid_url" "$repo is valid url"
-        } else {
-            CheckSshKnownHosts
-            CheckSshIdentity
-        }
-        if ($clone) {
-            clone
-        }
-        if ($update) {
-            update
-        }
+    if ($replace_dest) {
+        PrepareDestination
     }
-    catch {
-        $ErrorMessage = $_.Exception.Message
-        Fail-Json $result "Error cloning $repo to $dest! Msg: $ErrorMessage - $git_output"
+    if ([system.uri]::IsWellFormedUriString($repo,[System.UriKind]::Absolute)) {
+        # http/https repositories doesn't need Ssh handle
+        # fix to avoid wrong usage of CheckSshKnownHosts CheckSshIdentity for http/https
+        Set-Attr $result.win_git "valid_url" "$repo is valid url"
+    } else {
+        CheckSshKnownHosts
+        CheckSshIdentity
+    }
+    if ($clone) {
+        clone
+    }
+    if ($update) {
+        update
     }
 }
-
-if ($rc -eq 0) {
-    $cmd_msg = "Successfully cloned $repo into $dest."
-    $changed = $true
-} else {
-    $error_msg = SearchForError $git_output "Fatal Error!"
-    Fail-Json $result $error_msg
+catch {
+    $ErrorMessage = $_.Exception.Message
+    Fail-Json $result "Error cloning $repo to $dest! Msg: $ErrorMessage - $git_output"
 }
 
 Set-Attr $result.win_git "msg" $cmd_msg
 Set-Attr $result.win_git "changed" $changed
-Set-Attr $result "changed" $changed
 
 Exit-Json $result
