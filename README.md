@@ -12,12 +12,14 @@ place win_git.ps1 and win_git.py into 'library' dir of your playbook
 
 #### Example:
 ```
-  -name: git clone cool-thing
+-name: git clone cool-thing
     win_git:
-      name: "git@github.com:tivrobo/Ansible-win_git.git"
-      dest: "{{ ansible_env.TEMP }}\\Ansible-win_git"
-      replace_dest: no
-      accept_hostkey: yes
+        repo: "git@github.com:tivrobo/Ansible-win_git.git"
+        dest: "{{ ansible_env.TEMP }}\\Ansible-win_git"
+        branch: master
+        update: no
+        replace_dest: no
+        accept_hostkey: yes
 ```
 #### Output:
 ```
