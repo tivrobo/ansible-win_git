@@ -68,20 +68,18 @@ function FindGit {
     Fail-Json -obj $result -message "git.exe is not installed. It must be installed (use chocolatey)"
 }
 
-# Check destination folder, create if not exist
+# Remove dest if it exests
 function PrepareDestination {
     [CmdletBinding()]
     param()
-    if (Test-Path $dest) {
-        $directoryInfo = Get-ChildItem $dest -Force | Measure-Object
-        if ($directoryInfo.Count -ne 0) {
-            if ($replace_dest) {
-                # Clean destination
-                Remove-Item $dest -Force -Recurse | Out-Null
-            }
-            else {
-                Throw "Destination folder not empty!"
-            }
+    if (Test-Path $dest -and -not $check_mode) {
+        try {
+            Remove-Item $dest -Force -Recurse | Out-Null
+            $result.$cmd_msg = "Successfully removed dir $dest."
+            $result.$changed = $true
+        } catch {
+            $ErrorMessage = $_.Exception.Message
+            Fail-Json $result "Error removing $dest! Msg: $ErrorMessage"
         }
     }
 }
@@ -216,18 +214,23 @@ function update {
     $git_opts += "$branch"
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
-    # move into correct branch before pull
-    checkout
-    # perform git pull
-    Set-Location $dest; &git $git_opts | Tee-Object -Variable git_output | Out-Null
-    $Return.rc = $LASTEXITCODE
-    $Return.git_output = $git_output
-    
-    Set-Attr $result.win_git "return_code" $LASTEXITCODE
-    Set-Attr $result.win_git "git_output" $git_output
-
-    # TODO: 
-    # handle correct CHANGED for updated repository
+    #Only update if $dest does exist and not in check mode
+    if((Test-Path -Path $dest) -and (-Not $check_mode)) {
+        # move into correct branch before pull
+        checkout
+        # perform git pull
+        Set-Location $dest; &git $git_opts | Tee-Object -Variable git_output | Out-Null
+        $Return.rc = $LASTEXITCODE
+        $Return.git_output = $git_output
+        $result.$cmd_msg = "Successfully updated $repo tp $branch."
+        $result.$changed = $true
+        Set-Attr $result.win_git "return_code" $LASTEXITCODE
+        Set-Attr $result.win_git "git_output" $git_output
+    } else {
+        $Return.rc = 0
+        $Return.git_output = $local_git_output
+        $result.$cmd_msg = "Skipping update of $repo"
+    }
 
     return $Return
 }
@@ -257,10 +260,6 @@ else {
 
         FindGit
 
-        if (Test-Path $dest) {
-        } else {
-            PrepareDestination
-        }
         if ($replace_dest) {
             PrepareDestination
         }
@@ -275,7 +274,7 @@ else {
         if ($clone) {
             clone
         }
-        if ($update -and (Test-Path $dest\.git)) {
+        if ($update) {
             update
         }
     }
