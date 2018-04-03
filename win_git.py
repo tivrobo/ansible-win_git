@@ -46,7 +46,7 @@ options:
     default: false
   branch:
     description:
-      - branch to update the repo
+      - branch to update / clone the repo
     required: false
     default: master
 author: 
