@@ -176,6 +176,8 @@ function clone {
     $git_opts += "clone"
     $git_opts += $repo
     $git_opts += $dest
+    $git_opts += "--branch"
+    $git_opts += $branch
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
 
@@ -193,6 +195,15 @@ function clone {
         $Return.rc = 0
         $Return.git_output = $local_git_output
         Set-Attr $result "cmd_msg" "Skipping Clone of $repo becuase $dest already exists"
+    }
+
+    # Check if branch is the correct one
+    Set-Location $dest; &git status --short --branch | Tee-Object -Variable branch_status | Out-Null
+    $branch_status = $branch_status.split("/")[1]
+    Set-Attr $result.win_git "branch_status" "$branch_status"
+
+    if ( $branch_status -ne "$branch" ) {
+        Fail-Json $result "Branch $branch_status is not $branch"
     }
 
     return $Return
