@@ -97,7 +97,12 @@ function CheckSshKnownHosts {
     if ($rc -ne 0){
         # Host is unknown
         if ($accept_hostkey){
-            & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 $gitServer | Out-File -Append "$env:Userprofile\.ssh\known_hosts"
+            # workaroung for disable BOM
+            # https://github.com/tivrobo/ansible-win_git/issues/7
+            $sshHostKey = & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 $gitServer
+            $sshHostKey += "`n"
+            $sshKnownHostsPath = Join-Path -Path $env:Userprofile -ChildPath \.ssh\known_hosts
+            [System.IO.File]::AppendAllText($sshKnownHostsPath, $sshHostKey, $(New-Object System.Text.UTF8Encoding $False))
         }
         else {
             Fail-Json -obj $result -message  "Host is not known!"
