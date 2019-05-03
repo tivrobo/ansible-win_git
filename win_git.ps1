@@ -17,18 +17,20 @@ $dest = Get-AnsibleParam -obj $params -name "dest"
 $branch = Get-AnsibleParam -obj $params -name "branch" -default "master"
 $clone = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "clone" -default $true)
 $update = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "update" -default $false)
+$recursive = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "recursive" -default $true)
 $replace_dest = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "replace_dest" -default $false)
 $accept_hostkey = ConvertTo-Bool (Get-AnsibleParam -obj $params -name "accept_hostkey" -default $false)
 
 $result = New-Object psobject @{
     win_git = New-Object psobject @{
-        repo              = $null
-        dest              = $null
-        clone             = $false
-        replace_dest      = $true
-        accept_hostkey    = $true
-        update            = $false
-        branch            = "master"
+        repo           = $null
+        dest           = $null
+        clone          = $false
+        replace_dest   = $true
+        accept_hostkey = $true
+        update         = $false
+        recursive      = $true
+        branch         = "master"
     }
     changed = $false
     cmd_msg = $null
@@ -45,11 +47,11 @@ $env:Path += ";" + "C:\Program Files (x86)\Git\usr\bin"
 function Find-Command {
     [CmdletBinding()]
     param(
-      [Parameter(Mandatory=$true, Position=0)] [string] $command
+        [Parameter(Mandatory = $true, Position = 0)] [string] $command
     )
     $installed = get-command $command -erroraction Ignore
     write-verbose "$installed"
-    if ($installed){
+    if ($installed) {
         return $installed
     }
     return $null
@@ -59,11 +61,11 @@ function FindGit {
     [CmdletBinding()]
     param()
     $p = Find-Command "git.exe"
-    if ($p -ne $null){
+    if ($p -ne $null) {
         return $p
     }
     $a = Find-Command "C:\Program Files\Git\bin\git.exe"
-    if ($a -ne $null){
+    if ($a -ne $null) {
         return $a
     }
     Fail-Json -obj $result -message "git.exe is not installed. It must be installed (use chocolatey)"
@@ -78,7 +80,8 @@ function PrepareDestination {
             Remove-Item $dest -Force -Recurse | Out-Null
             Set-Attr $result "cmd_msg" "Successfully removed dir $dest."
             Set-Attr $result "changed" $true
-        } catch {
+        }
+        catch {
             $ErrorMessage = $_.Exception.Message
             Fail-Json $result "Error removing $dest! Msg: $ErrorMessage"
         }
@@ -93,10 +96,10 @@ function CheckSshKnownHosts {
     $gitServer = $($repo -replace "^(\w+)\@([\w-_\.]+)\:(.*)$", '$2')
     & cmd /c ssh-keygen.exe -F $gitServer | Out-Null
     $rc = $LASTEXITCODE
-    
-    if ($rc -ne 0){
+
+    if ($rc -ne 0) {
         # Host is unknown
-        if ($accept_hostkey){
+        if ($accept_hostkey) {
             # workaroung for disable BOM
             # https://github.com/tivrobo/ansible-win_git/issues/7
             $sshHostKey = & cmd /c ssh-keyscan.exe -t ecdsa-sha2-nistp256 $gitServer
@@ -122,31 +125,31 @@ function CheckSshIdentity {
 }
 
 function get_version {
-    # samples the version of the git repo 
+    # samples the version of the git repo
     # example:  git rev-parse HEAD
     #           output: 931ec5d25bff48052afae405d600964efd5fd3da
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false, Position=0)] [string] $refs = "HEAD"
+        [Parameter(Mandatory = $false, Position = 0)] [string] $refs = "HEAD"
     )
     $git_opts = @()
     $git_opts += "--no-pager"
     $git_opts += "rev-parse"
     $git_opts += "$refs"
     $git_cmd_output = ""
-    
-    [hashtable]$Return = @{} 
+
+    [hashtable]$Return = @{}
     Set-Location $dest; &git $git_opts | Tee-Object -Variable git_cmd_output | Out-Null
     $Return.rc = $LASTEXITCODE
     $Return.git_output = $git_cmd_output
-    
+
     return $Return
 }
 
 function checkout {
     [CmdletBinding()]
     param()
-    [hashtable]$Return = @{} 
+    [hashtable]$Return = @{}
     $local_git_output = ""
 
     $git_opts = @()
@@ -173,7 +176,7 @@ function clone {
     param()
 
     Set-Attr $result.win_git "method" "clone"
-    [hashtable]$Return = @{} 
+    [hashtable]$Return = @{}
     $local_git_output = ""
 
     $git_opts = @()
@@ -183,11 +186,14 @@ function clone {
     $git_opts += $dest
     $git_opts += "--branch"
     $git_opts += $branch
+    if ($recursive) {
+        $git_opts += "--recursive"
+    }
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
 
     #Only clone if $dest does not exist and not in check mode
-    if( (-Not (Test-Path -Path $dest)) -And  (-Not $check_mode)) {
+    if ( (-Not (Test-Path -Path $dest)) -And (-Not $check_mode)) {
         &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $local_git_output
@@ -232,7 +238,7 @@ function update {
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
     #Only update if $dest does exist and not in check mode
-    if((Test-Path -Path $dest) -and (-Not $check_mode)) {
+    if ((Test-Path -Path $dest) -and (-Not $check_mode)) {
         # move into correct branch before pull
         checkout
         # perform git pull
@@ -244,7 +250,8 @@ function update {
         Set-Attr $result "changed" $true
         Set-Attr $result.win_git "return_code" $LASTEXITCODE
         Set-Attr $result.win_git "git_output" $git_output
-    } else {
+    }
+    else {
         $Return.rc = 0
         $Return.git_output = $local_git_output
         Set-Attr $result "cmd_msg" "Skipping update of $repo"
@@ -276,11 +283,12 @@ try {
     if ($replace_dest) {
         PrepareDestination
     }
-    if ([system.uri]::IsWellFormedUriString($repo,[System.UriKind]::Absolute)) {
+    if ([system.uri]::IsWellFormedUriString($repo, [System.UriKind]::Absolute)) {
         # http/https repositories doesn't need Ssh handle
         # fix to avoid wrong usage of CheckSshKnownHosts CheckSshIdentity for http/https
         Set-Attr $result.win_git "valid_url" "$repo is valid url"
-    } else {
+    }
+    else {
         CheckSshKnownHosts
         CheckSshIdentity
     }

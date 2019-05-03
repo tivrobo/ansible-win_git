@@ -44,12 +44,17 @@ options:
       - do we want to update the repo (use git pull origin branch)
     required: false
     default: false
+  recursive:
+    description:
+      - if C(no), repository will be cloned without the --recursive option, skipping sub-modules
+    type: bool
+    default: 'yes'
   branch:
     description:
       - branch to update / clone the repo
     required: false
     default: master
-author: 
+author:
 - Anatoliy Ivashina
 - Pablo Estigarribia
 - Michael Hay
