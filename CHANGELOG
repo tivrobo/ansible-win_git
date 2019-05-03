@@ -1,3 +1,7 @@
+20190305:
+
+  - Added "recursive" option for clone (tivrobo)
+
 20180328:
 
   - Changed variables to match non windows git mudule names (project.hay)
