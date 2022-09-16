@@ -61,11 +61,11 @@ function FindGit {
     [CmdletBinding()]
     param()
     $p = Find-Command "git.exe"
-    if ($p -ne $null) {
+    if ($null -ne $p) {
         return $p
     }
     $a = Find-Command "C:\Program Files\Git\bin\git.exe"
-    if ($a -ne $null) {
+    if ($null -ne $a) {
         return $a
     }
     Fail-Json -obj $result -message "git.exe is not installed. It must be installed (use chocolatey)"
@@ -146,6 +146,32 @@ function get_version {
     return $Return
 }
 
+function get_branch_status {
+    # returns current brunch of the git repo
+    # example:  git rev-parse --abbrev-ref HEAD
+    #           output: master
+    # [CmdletBinding()]
+    # param()
+
+    $git_opts = @()
+    $git_opts += "--no-pager"
+    $git_opts += "-C"
+    $git_opts += "$dest"
+    $git_opts += "rev-parse"
+    $git_opts += "--abbrev-ref"
+    $git_opts += "HEAD"
+    $branch_status = ""
+
+    # [hashtable]$Return = @{}
+    # Set-Location -Path $dest
+    Start-Process -FilePath git -ArgumentList $git_opts -Wait -NoNewWindow | Tee-Object -Variable branch_status | Out-Null
+    # $Return.rc = $LASTEXITCODE
+    # $Return.git_output = $branch_status
+
+    # return $Return
+    return $branch_status
+}
+
 function checkout {
     [CmdletBinding()]
     param()
@@ -154,13 +180,14 @@ function checkout {
 
     $git_opts = @()
     $git_opts += "--no-pager"
-    $git_opts += "checkout"
+    $git_opts += "switch"
     $git_opts += "$branch"
-    Set-Location $dest; &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
-
+    Set-Location -Path $dest
+    Start-Process -FilePath git -ArgumentList $git_opts -Wait -NoNewWindow | Tee-Object -Variable local_git_output | Out-Null
+    $Return.rc = $LASTEXITCODE
     $Return.git_output = $local_git_output
-    Set-Location $dest; &git status --short --branch | Tee-Object -Variable branch_status | Out-Null
-    $branch_status = $branch_status.split("/")[1]
+
+    Set-Location -Path $dest; &git rev-parse --abbrev-ref HEAD | Tee-Object -Variable branch_status | Out-Null
     Set-Attr $result.win_git "branch_status" "$branch_status"
 
     if ( $branch_status -ne "$branch" ) {
@@ -192,9 +219,9 @@ function clone {
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
 
-    #Only clone if $dest does not exist and not in check mode
+    # Only clone if $dest does not exist and not in check mode
     if ( (-Not (Test-Path -Path $dest)) -And (-Not $check_mode)) {
-        &git $git_opts | Tee-Object -Variable local_git_output | Out-Null
+        Start-Process -FilePath git -ArgumentList $git_opts -Wait -NoNewWindow | Tee-Object -Variable local_git_output | Out-Null
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $local_git_output
         Set-Attr $result "cmd_msg" "Successfully cloned $repo into $dest."
@@ -206,11 +233,15 @@ function clone {
         $Return.rc = 0
         $Return.git_output = $local_git_output
         Set-Attr $result "cmd_msg" "Skipping Clone of $repo becuase $dest already exists"
+        Set-Attr $result "changed" $false
+    }
+
+    if (($update) -and (-Not $result.changed)) {
+        update
     }
 
     # Check if branch is the correct one
-    Set-Location $dest; &git status --short --branch | Tee-Object -Variable branch_status | Out-Null
-    $branch_status = $branch_status.split("/")[1]
+    Set-Location -Path $dest; &git rev-parse --abbrev-ref HEAD | Tee-Object -Variable branch_status | Out-Null
     Set-Attr $result.win_git "branch_status" "$branch_status"
 
     if ( $branch_status -ne "$branch" ) {
@@ -237,16 +268,18 @@ function update {
     $git_opts += "$branch"
 
     Set-Attr $result.win_git "git_opts" "$git_opts"
-    #Only update if $dest does exist and not in check mode
+
+    # Only update if $dest does exist and not in check mode
     if ((Test-Path -Path $dest) -and (-Not $check_mode)) {
         # move into correct branch before pull
         checkout
         # perform git pull
-        Set-Location $dest; &git $git_opts | Tee-Object -Variable git_output | Out-Null
+        Set-Location -Path $dest
+        Start-Process -FilePath git -ArgumentList $git_opts -Wait -NoNewWindow | Tee-Object -Variable git_output | Out-Null
         $Return.rc = $LASTEXITCODE
         $Return.git_output = $git_output
         Set-Attr $result "cmd_msg" "Successfully updated $repo to $branch."
-        #TODO: handle correct status change when using update
+        # TODO: handle correct status change when using update
         Set-Attr $result "changed" $true
         Set-Attr $result.win_git "return_code" $LASTEXITCODE
         Set-Attr $result.win_git "git_output" $git_output
@@ -292,11 +325,11 @@ try {
         CheckSshKnownHosts
         CheckSshIdentity
     }
-    if ($clone) {
-        clone
-    }
     if ($update) {
         update
+    }
+    if ($clone) {
+        clone
     }
 }
 catch {
